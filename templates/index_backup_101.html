@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/4.5.2/css/bootstrap.min.css">
+    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.16.0/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <title>Data Table with Modal Edit</title>
+
+    <style>
+        #data-table {
+            border-collapse: collapse;
+            width: 100%;
+            /* overflow-y: auto;  开启垂直滚动条 */
+            /* max-height: 600px; */
+            /* width: auto;  内容自适应宽度 */
+            /* max-height: 400px; 不设置 max-height，允许内容自适应高度 */
+            /* display: block; - 让表格可滚动 去掉这行，确保表格正常的行为 */
+        }
+        #data-table thead {
+            position: sticky; /* 固定表头 */
+            top: 0; /* 在上方 */
+            background-color: white; /* 设置背景颜色，防止内容重叠 */
+            z-index: 10; /* 确保在其他内容之上 */
+        }
+        #data-table th, #data-table td {
+            padding: 0; /* 内边距 8px，设置0时可以精准控制高度*/
+            border: 1px solid #ddd; /* 边框样式 */
+            text-align: left; /* 文本左对齐 */
+        }
+        #data-table th {
+            background-color: #f1f1f1; /* 可以为表头添加背景颜色 */
+        }
+        #data-table td {
+            height: 18px; /* 设置数据行的高度，可以根据需要调整 */
+        }
+        .filter-input {
+            width: 80px;
+            display: inline-block;
+        }
+        .table-container {
+            /* max-height: 400px;  Set max height */
+            max-height: 90%; /* vh设置容器最大高度为视口80% */
+            overflow-y: auto; /* 允许垂直滚动 */
+            margin-bottom: 5px; /* 适当的底部间距 */
+            margin-top: 5px; /* 适当的顶部间距 */
+        }
+        .btn-import {
+            margin-bottom: 8px; /* 适当的底部间距 */
+        }
+        .btn-export {
+            margin-top: 8px; /* 适当的底部间距 */
+        }
+        /*  .alert {
+            display: none; /* Initially hide alert
+        } */
+        .current-page {
+            color: red; /* 设置当前页的文本颜色 */
+            /* font-weight: bold;  可以让当前页的字体加粗 */
+        }
+        /* 模态框背景样式 */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.4);
+        }
+        /* 模态框内容样式 */
+        .modal-content {
+            background-color: #fefefe;
+            margin: 15% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%;
+        }
+        /* 关闭按钮样式 */
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+        }
+        .close:hover,
+        .close:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+<div class="container mt-5">
+    <h1>SATD SIMs Info Table</h1>
+
+    <div class="btn-import">
+        <input type="file" id="excel-file" title="Excel列必须为 ID、Name、Age，ID必须唯一。" class="mr-2">
+        <button id="import-button" class="btn btn-primary mr-2">Import Data by Excel</button>
+        <div class="alert alert-danger" id="import-alert"></div>
+    </div>
+    <div class="form-inline mb-3">
+        <label for="rowsPerPage" class="mr-2">Rows per page:</label>
+        <select id="rowsPerPage" class="form-control mr-2">
+            <option value="10" selected>10</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+            <option value="500">500</option>
+        </select>
+    </div>
+    <div class="table-container">
+        <table class="table table-bordered" id="data-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Name <input type="text" class="form-control form-control-sm filter-input" placeholder="Filter Name" data-column="1"></th>
+                    <th>Age <input type="text" class="form-control form-control-sm filter-input" placeholder="Filter Age" data-column="2"></th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="table-body">
+                <!-- Data will be populated here via AJAX -->
+            </tbody>
+        </table>
+    </div>
+
+    <div class="d-flex justify-content-between align-items-center mt-3">
+        <div class="ml-auto" id="pagination-info"></div>
+    </div>
+    <div class="pagination" id="pagination">
+        <!-- Pagination buttons will be populated here -->
+    </div>
+    <div class="btn-export">
+        <button id="export-button" class="btn btn-success">Export Data to Excel</button>
+    </div>
+</div>
+
+<!-- Edit Modal -->
+<div class="modal" id="editModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <span class="close">&times;</span>
+            <p>Edit Data</p>
+        </div>
+        <div class="modal-body">
+            <form id="edit-form">
+                <div class="form-group">
+                    <label for="edit-name">Name</label>
+                    <input type="text" class="form-control" id="edit-name">
+                </div>
+                <div class="form-group">
+                    <label for="edit-age">Age</label>
+                    <input type="text" class="form-control" id="edit-age">
+                </div>
+                <!--input type="hidden" id="edit-id"-------->
+            </form>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+            <button type="button" class="btn btn-primary" id="save-edit">Save Changes</button>
+        </div>
+    </div>
+</div>
+
+<script>
+$(document).ready(function() {
+    let currentPage = 1;
+    let rowsPerPage = 10; // Default value
+
+    // Load table data with specified page and filters
+    function loadTableData(page, filters = {}) {
+        $.ajax({
+            url: `/data?page=${page}&rows_per_page=${rowsPerPage}`,
+            method: 'GET',
+            data: filters,
+            success: function(data) {
+                const { items, total } = data;
+                $('#table-body').empty();
+                items.forEach(item => {
+                    $('#table-body').append(`
+                        <tr>
+                            <td>${item.id}</td>
+                            <td>${item.name}</td>
+                            <td>${item.age}</td>
+                            <td>
+                                <form method="post" action="/delete/${item.id}" style="display:inline;">
+                                    <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                                </form>
+                                <button id="editBtn" onclick="openEditModal(${item.id}, '${item.name}', ${item.age})">Edit</button>
+                                <!--a href="/edit/${item.id}" class="btn btn-warning btn-sm">Edit</a-->
+                            </td>
+                        </tr>
+                    `);
+                });
+
+                createPagination(page, total);
+                $('#pagination-info').text(`Showing ${items.length} of ${total} entries`);
+            }
+        });
+    }
+
+    // Create pagination buttons based on current page and total items
+    function createPagination(currentPage, total) {
+        $('#pagination').empty();
+        const totalPages = Math.ceil(total / rowsPerPage);
+        if (currentPage > 1) {
+            $('#pagination').append(`<a class="page-link" href="#" data-page="${currentPage - 1}">Previous</a>`);
+        }
+        for (let i = 1; i <= totalPages; i++) {
+            if (i === currentPage) {
+                $('#pagination').append(`<span class="page-link current-page">${i}</span>`);
+            } else {
+                $('#pagination').append(`<a class="page-link" href="#" data-page="${i}">${i}</a>`);
+            }
+        }
+        if (currentPage < totalPages) {
+            $('#pagination').append(`<a class="page-link" href="#" data-page="${currentPage + 1}">Next</a>`);
+        }
+    }
+
+    // Event listener for pagination link clicks
+    $(document).on('click', '.page-link', function(e) {
+        e.preventDefault();
+        currentPage = $(this).data('page');
+        loadTableData(currentPage);
+    });
+
+    // Event listener for filter inputs
+    $('.filter-input').on('input', function() {
+        const nameFilter = $('input[data-column="1"]').val().toLowerCase();
+        const ageFilter = $('input[data-column="2"]').val();
+        currentPage = 1;  // Reset to the first page
+        loadTableData(currentPage, { name: nameFilter, age: ageFilter });
+    });
+
+    // Event listener for changing rows per page
+    $('#rowsPerPage').on('change', function() {
+        rowsPerPage = $(this).val(); // Update rowsPerPage with the selected value
+        currentPage = 1; // Reset to the first page
+        loadTableData(currentPage); // Reload data
+    });
+
+    // Event listener for the import button
+    $('#import-button').on('click', function() {
+        const fileInput = $('#excel-file')[0];
+        const file = fileInput.files[0];
+        if (!file) {
+            alert('Please select an Excel file to import.');
+            return;
+        }
+        const formData = new FormData();
+        formData.append('file', file);
+
+        $.ajax({
+            url: '/import',  // import endpoint (route)
+            type: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            success: function(response) {
+                $('#import-alert').hide();  // Hide alert on success
+                if (response.success) {
+                    alert('Import successful!');
+                    $('#excel-file').val('');  // Clear the file input
+                    loadTableData(currentPage); // Reload data after import
+                } else {
+                    $('#import-alert').text(response.message).show(); // Show error message
+                }
+            },
+            error: function(jqXHR) {
+                let errorMessage = 'Import fail: 发生未知错误, 请尝试重传';
+                try {
+                    // 尝试解析 JSON
+                    const responseJson = JSON.parse(jqXHR.responseText);
+                    if (responseJson.message) {
+                        errorMessage = 'Import fail: ' + responseJson.message;
+                    }
+                } catch (e) {
+                    // 处理解析失败的情况，保留默认错误信息
+                    errorMessage = 'Import fail: ' + jqXHR.responseText;
+                }
+                $('#import-alert').text(errorMessage).show();   // show error message
+            }
+        });
+    });
+
+    // Event listener for the export button
+    $('#export-button').on('click', function() {
+        window.location.href = '/export'; // Adjust the URL to your export endpoint
+    });
+
+    // Open edit modal
+    // 获取模态框
+    var modal = document.getElementById("editModal");
+    // 获取按钮，点击按钮打开模态框
+    var editbtn = document.getElementById("editBtn");
+    // 获取点击该元素关闭模态框
+    var editspan = document.getElementsByClassName("close")[0];
+    // 点击按钮打开模态框
+    editbtn.onclick = function() {
+        modal.style.display = "block";
+    }
+    // 点击关闭模态框
+    editspan.onclick = function() {
+        modal.style.display = "none";
+    }
+
+    // 在用户点击模态框外部时也关闭模态框
+    window.onclick = function(event) {
+        if (event.target == modal) {
+            modal.style.display = "none";
+        }
+    }
+
+    window.openEditModal = function(id, name, age) {
+        // $('#edit-id').val(id);
+        $('#edit-name').val(name);
+        $('#edit-age').val(age);
+        $('#editModal').modal('show');
+    };
+    // Edit save changes
+    $('#save-edit').on('click', function() {
+        const id = $('#edit-id').val();
+        const name = $('#edit-name').val();
+        const age = $('#edit-age').val();
+        // Simulate an AJAX request to save changes
+        $.ajax({
+            url: `/edit/${id}`,
+            method: 'POST',
+            data: { name: name, age: age },
+            success: function(response) {
+                $('#editModal').modal('hide'); // Hide the modal
+                loadTableData(); // Reload the table data
+                alert('Data updated successfully!');
+            },
+            error: function() {
+                alert('Error updating data.');
+            }
+        });
+    });
+
+    // Initial data load
+    loadTableData(currentPage);
+});
+</script>
+</body>
+</html>

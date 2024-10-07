@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/4.5.2/css/bootstrap.min.css">
+    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.16.0/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <title>SIM_Table</title>
+
+    <style>
+        #data-table {
+            border-collapse: collapse;
+            width: 100%;
+            /* overflow-y: auto;  开启垂直滚动条 */
+            /* max-height: 600px; */
+            /* width: auto;  内容自适应宽度 */
+            /* max-height: 400px; 不设置 max-height，允许内容自适应高度 */
+            /* display: block; - 让表格可滚动 去掉这行，确保表格正常的行为 */
+        }
+        #data-table thead {
+            position: sticky; /* 固定表头 */
+            top: 0; /* 在上方 */
+            background-color: white; /* 设置背景颜色，防止内容重叠 */
+            z-index: 10; /* 确保在其他内容之上 */
+        }
+        #data-table th, #data-table td {
+            padding: 0; /* 内边距 8px，设置0时可以精准控制高度*/
+            border: 1px solid #ddd; /* 边框样式 */
+            text-align: left; /* 文本左对齐 */
+        }
+        #data-table th {
+            font-size: 16px;
+            background-color: #f1f1f1;  /* 可以为表头添加背景颜色 */
+        }
+        #data-table td {
+            font-size: 14px;
+            height: 20px;   /* 设置数据行的高度，可以根据需要调整 */
+        }
+        .filter-input {
+            width: 60px;
+            display: inline-block;
+        }
+        .table-container {
+            /* max-height: 400px;  Set max height */
+            max-height: 90%; /* vh设置容器最大高度为视口80% */
+            overflow-y: auto; /* 允许垂直滚动 */
+            margin-bottom: 5px; /* 适当的底部间距 */
+            margin-top: 5px; /* 适当的顶部间距 */
+        }
+        .btn-import {
+            margin-bottom: 8px; /* 适当的底部间距 */
+        }
+        .btn-export {
+            margin-top: 8px; /* 适当的顶部间距 */
+        }
+        .current-page {
+            color: red; /* 设置当前页的文本颜色 */
+            /* font-weight: bold;  可以让当前页的字体加粗 */
+        }
+        .pagination .page-link {
+            margin: 0 1px; /* Add margin between pagination buttons */
+            padding: 1px 2px; /* Increase padding for better click ability */
+        }
+
+        .card-edit {
+            position: fixed;
+            z-index: 1000;
+            top: 50%;
+            left: 70%;
+            width: 50%;
+            height: 50%;
+            font-size: 15px;
+            transform: translate(-50%, -50%);
+            display: none; /* Initially hidden */
+            width: 400px;  /* Fixed width for the card */
+            background-color: #F0F8FF; /* Light gray background color */
+            border: 1px solid #ced4da; /* Border color to match Bootstrap */
+            border-radius: 0.15rem; /* Rounded corners */
+        }
+        /* card-header 样式 */
+        .card-header {
+            font-size: 1.2rem; /* Larger font size */
+            text-align: center; /* Center align the title */
+            position: relative; /* Position to help with close button */
+            padding: 0.45rem 1rem;
+        }
+        /* Close button 样式 */
+        .card-header .close {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            font-size: 0.8rem; /* Smaller font size for the close button */
+            padding: 0; /* Remove extra padding */
+        }
+        /* card-body 样式 */
+        .card-body {
+            font-size: 0.875rem; /* Smaller font size */
+        }
+        .save-btn {
+            margin-top: 8px; /* 适当的顶部间距 */
+        }
+        /* form-group 中 input 框样式 */
+        .form-group {
+            display: flex;
+            /* flex-direction: column;  Stack label and input vertically */
+            width: 55%;
+            /* align-items: stretch;  Ensure input is full width */
+            margin-bottom: 0.3rem;  /* Add space between form groups */
+        }
+        .form-group label {
+            font-size: 0.8rem;  /* Smaller font size for the label */
+            width: 50px; /* Fixed width for alignment */
+            margin-bottom: 0.3rem;  /* Space between label and input */
+        }
+    </style>
+</head>
+<body>
+<div class="container mt-5">
+    <h1>SATD SIMs Info Table</h1>
+    <div class="btn-import">
+        <input type="file" id="excel-file" title="Excel列标签必须包含编号、号码、运营商、归属地、使用地、使用状态、使用人、PUK、资费、编号后五位." class="mr-2">
+        <button id="import-button" class="btn btn-primary mr-2">Import SIMs by Excel</button>
+        <div class="alert alert-danger" id="import-alert"></div>
+    </div>
+    <div class="form-inline mb-3">
+        <label for="rowsPerPage" class="mr-2">Rows per page:</label>
+        <select id="rowsPerPage" class="form-control mr-2">
+            <option value="10" selected>10</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+            <option value="500">500</option>
+        </select>
+    </div>
+    <div class="table-container">
+        <table class="table table-bordered" id="data-table">
+            <thead>
+                <tr>
+                    <th>编号</th>
+                    <th>号码<input type="text" class="form-control form-control-sm filter-input" placeholder="Filter Name" data-column="1"></th>
+                    <th>运营商<input type="text" class="form-control form-control-sm filter-input" placeholder="Filter" data-column="2"></th>
+                    <th>归属地<input type="text" class="form-control form-control-sm filter-input" placeholder="Filter" data-column="3"></th>
+                    <th>使用地<input type="text" class="form-control form-control-sm filter-input" placeholder="Filter" data-column="4"></th>
+                    <th>使用状态<input type="text" class="form-control form-control-sm filter-input" placeholder="Filter" data-column="5"></th>
+                    <th>使用人<input type="text" class="form-control form-control-sm filter-input" placeholder="Filter" data-column="6"></th>
+                    <th>PUK</th>
+                    <th>资费/月</th>
+                    <th>编号后五位<input type="text" class="form-control form-control-sm filter-input" placeholder="Filter" data-column="7"></th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="table-body">
+                <!-- Data will be populated here via AJAX -->
+            </tbody>
+        </table>
+    </div>
+
+    <div class="d-flex justify-content-between align-items-center mt-3">
+        <div class="ml-auto" id="pagination-info"></div>
+    </div>
+    <div class="pagination" id="pagination">
+        <!-- Pagination buttons will be populated here -->
+    </div>
+    <div class="btn-export">
+        <button id="export-button" class="btn btn-success">Export SIMs to Excel</button>
+    </div>
+</div>
+
+<!-- Edit Card -->
+<div class="card card-edit" id="editCard">
+    <div class="card-header">
+        <h5>Edit SIM</h5>
+        <button type="button" class="close" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+        </button>
+    </div>
+    <div class="card-body">
+        <form id="edit-form">
+            <div class="form-group">
+                <label for="edit-tel">号码</label>
+                <input type="text" class="form-control" id="edit-tel">
+            </div>
+            <div class="form-group">
+                <label for="edit-opt">运营商</label>
+                <input type="text" class="form-control" id="edit-opt">
+            </div>
+            <div class="form-group">
+                <label for="edit-loc">归属地</label>
+                <input type="text" class="form-control" id="edit-loc">
+            </div>
+            <div class="form-group">
+                <label for="edit-use">使用地</label>
+                <input type="text" class="form-control" id="edit-use">
+            </div>
+            <div class="form-group">
+                <label for="edit-sta">使用状态</label>
+                <input type="text" class="form-control" id="edit-sta">
+            </div>
+            <div class="form-group">
+                <label for="edit-user">使用人</label>
+                <input type="text" class="form-control" id="edit-user">
+            </div>
+            <div class="form-group">
+                <label for="edit-puk">PUK</label>
+                <input type="text" class="form-control" id="edit-puk">
+            </div>
+            <div class="form-group">
+                <label for="edit-trf">资费</label>
+                <input type="text" class="form-control" id="edit-trf">
+            </div>
+            <div class="form-group">
+                <label for="edit-code">编号后五位</label>
+                <input type="text" class="form-control" id="edit-code">
+            </div>
+            <input type="hidden" id="edit-id">
+            <button type="button" class="btn btn-primary save-btn" id="save-edit">Save Changes</button>
+        </form>
+    </div>
+</div>
+
+<script>
+$(document).ready(function() {
+    let currentPage = 1;
+    let rowsPerPage = 10; // Default value
+
+    // Load table data with specified page and filters
+    function loadTableData(page, filters = {}) {
+        $.ajax({
+            url: `/data?page=${page}&rows_per_page=${rowsPerPage}`,
+            method: 'GET',
+            data: filters,
+            success: function(data) {
+                const { items, total } = data;
+                $('#table-body').empty();
+                items.forEach(item => {
+                    $('#table-body').append(
+                        `<tr data-id="${item.id}">
+                            <td>${item.id}</td>
+                            <td>${item.tel}</td>
+                            <td>${item.opt}</td>
+                            <td>${item.loc}</td>
+                            <td>${item.use}</td>
+                            <td>${item.sta}</td>
+                            <td>${item.user}</td>
+                            <td>${item.puk}</td>
+                            <td>${item.trf}</td>
+                            <td>${item.code}</td>
+                            <td>
+                                <form method="post" action="/delete/${item.id}" style="display:inline;" class="delete-form">
+                                    <button type="button" class="btn btn-danger btn-sm delete-btn">Delete</button>
+                                </form>
+                                <button class="btn btn-warning btn-sm edit-btn"
+                                        data-id="${item.id}" data-tel="${item.tel}"
+                                        data-opt="${item.opt}" data-loc="${item.loc}"
+                                        data-use="${item.use}" data-sta="${item.sta}"
+                                        data-user="${item.user}" data-puk="${item.puk}"
+                                        data-trf="${item.trf}" data-code="${item.code}">Edit</button>
+                                <!--a href="/edit/${item.id}" class="btn btn-warning btn-sm">Edit</a-->
+                            </td>
+                        </tr>`
+                    );
+                });
+                createPagination(page, total);
+                $('#pagination-info').text(`Showing ${items.length} of ${total} entries`);
+            }
+        });
+    }
+
+    // Create pagination buttons based on current page and total items
+    function createPagination(currentPage, total) {
+        $('#pagination').empty();
+        const totalPages = Math.ceil(total / rowsPerPage);
+        if (currentPage > 1) {
+            $('#pagination').append(`<a class="page-link" href="#" data-page="${currentPage - 1}">Previous</a>`);
+        }
+        for (let i = 1; i <= totalPages; i++) {
+            if (i === currentPage) {
+                $('#pagination').append(`<span class="page-link current-page">${i}</span>`);
+            } else {
+                $('#pagination').append(`<a class="page-link" href="#" data-page="${i}">${i}</a>`);
+            }
+        }
+        if (currentPage < totalPages) {
+            $('#pagination').append(`<a class="page-link" href="#" data-page="${currentPage + 1}">Next</a>`);
+        }
+    }
+
+    // Event listener for pagination link clicks
+    $(document).on('click', '.page-link', function(e) {
+        e.preventDefault();
+        currentPage = $(this).data('page');
+        loadTableData(currentPage);
+    });
+
+    // Event listener for filter inputs
+    $('.filter-input').on('input', function() {
+        const telFilter = $('input[data-column="1"]').val().toLowerCase();
+        const optFilter = $('input[data-column="2"]').val().toLowerCase();
+        const locFilter = $('input[data-column="3"]').val().toLowerCase();
+        const useFilter = $('input[data-column="4"]').val().toLowerCase();
+        const staFilter = $('input[data-column="5"]').val().toLowerCase();
+        const userFilter = $('input[data-column="6"]').val().toLowerCase();
+        const codeFilter = $('input[data-column="7"]').val().toLowerCase();
+        currentPage = 1;  // Reset to the first page
+        loadTableData(currentPage, { tel: telFilter, opt: optFilter, loc: locFilter, use: useFilter, sta: staFilter, user: userFilter, code: codeFilter,});
+    });
+
+    // Event listener for changing rows per page
+    $('#rowsPerPage').on('change', function() {
+        rowsPerPage = $(this).val();  // Update rowsPerPage with the selected value
+        currentPage = 1;  // Reset to the first page
+        loadTableData(currentPage);  // Reload data
+    });
+
+    // Event listener for delete buttons with confirmation
+    $(document).on('click', '.delete-btn', function() {
+        const form = $(this).closest('form');
+        if (confirm('Confirm to delete this sim data?')) {
+            form.submit();
+        }
+    });
+
+    // Event listener for the import button
+    $('#import-button').on('click', function() {
+        const fileInput = $('#excel-file')[0];
+        const file = fileInput.files[0];
+        if (!file) {
+            alert('Please select an Excel file to import.');
+            return;
+        }
+        const formData = new FormData();
+        formData.append('file', file);
+
+        $.ajax({
+            url: '/import',    // import endpoint (route)
+            method: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            success: function(response) {
+                if (response.success) {
+                    alert('Data import successfully!');
+                    $('#excel-file').val('');  // Clear the file input
+                    loadTableData(currentPage);  // Reload data after import
+                } else {
+                    $('#excel-file').val('');
+                    $('#import-alert').text(response.message).show(); // Show error message
+                }
+            },
+            error: function(jqXHR) {
+                let errorMessage = 'Import fail: Unknown error, try import again';
+                try {
+                    // parse JSON
+                    const responseJson = JSON.parse(jqXHR.responseText);
+                    if (responseJson.message) {
+                        errorMessage = 'Import fail: ' + responseJson.message;
+                    }
+                } catch (e) {
+                    // reserve default error message
+                    errorMessage = 'Import fail: ' + jqXHR.responseText;
+                }
+                $('#excel-file').val('');
+                $('#import-alert').text(errorMessage).show();   // show error message
+            }
+        });
+    });
+
+    // Event listener for the export button
+    $('#export-button').on('click', function() {
+        window.location.href = '/export_sim'; // Adjust the URL to export endpoint
+    });
+
+    // Event listener for edit buttons
+    $(document).on('click', '.edit-btn', function() {
+        const id = $(this).data('id');
+        const tel = $(this).data('tel');
+        const opt = $(this).data('opt');
+        const loc = $(this).data('loc');
+        const use = $(this).data('use');
+        const sta = $(this).data('sta');
+        const user = $(this).data('user');
+        const puk = $(this).data('puk');
+        const code = $(this).data('code');
+
+        $('#edit-id').val(id);
+        $('#edit-tel').val(tel);
+        $('#edit-opt').val(opt);
+        $('#edit-loc').val(loc);
+        $('#edit-use').val(use);
+        $('#edit-sta').val(sta);
+        $('#edit-user').val(user);
+        $('#edit-puk').val(puk);
+        $('#edit-code').val(code);
+        $('#editCard').show();
+    });
+
+    // Event listener for saving edits
+    $('#save-edit').on('click', function() {
+        const id = $('#edit-id').val();
+        const tel = $('#edit-tel').val();
+        const opt = $('#edit-opt').val();
+        const loc = $('#edit-loc').val();
+        const use = $('#edit-use').val();
+        const sta = $('#edit-sta').val();
+        const user = $('#edit-user').val();
+        const puk = $('#edit-puk').val();
+        const code = $('#edit-code').val();
+
+        $.ajax({
+            url: `/edit/${id}`,
+            method: 'POST',
+            data: { tel: tel, opt: opt, loc: loc, use: use, sta: sta, user: user, puk: puk, code: code},
+            success: function() {
+                // $('#editModal').hide();
+                $('#editCard').hide();
+                loadTableData(currentPage);
+            },
+            error: function() {
+                alert('Error updating data. Please try again.');
+            }
+        });
+    });
+
+    // Event listener for closing the modal
+    $('.close').on('click', function() {
+        $('#editCard').hide();
+    });
+
+    // Initial load
+    loadTableData(currentPage);
+});
+</script>
+</body>
+</html>
